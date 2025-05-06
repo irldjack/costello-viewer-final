@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Costello 3D Window Viewer</title>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #f0f0f0; overflow: hidden; }
+    #ui {
+      position: absolute; top: 20px; left: 20px; z-index: 10;
+      background: white; padding: 1rem; border-radius: 8px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.2); width: 240px;
+    }
+    label, select, input, button { width: 100%; margin-bottom: 10px; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <label for="windowType">Window Type</label>
+    <select id="windowType">
+      <option value="casement">Casement</option>
+      <option value="sash">Sash</option>
+      <option value="tilt">Tilt & Turn</option>
+    </select>
+    <label for="windowWidth">Width (mm)</label>
+    <input type="number" id="windowWidth" value="1000" />
+    <label for="windowHeight">Height (mm)</label>
+    <input type="number" id="windowHeight" value="1200" />
+    <button id="updateButton">Update Window</button>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/controls/OrbitControls.js"></script>
+
+  <script>
+    window.addEventListener('load', () => {
+      let scene, camera, renderer, controls, windowMesh;
+
+      function createGlass(w, h, z = 41) {
+        const mat = new THREE.MeshStandardMaterial({ color: 0x87ceeb, opacity: 0.5, transparent: true });
+        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+        mesh.position.z = z;
+        return mesh;
+      }
+
+      function createFrame(w, h, d = 80) {
+        return new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color: 0x8b8b8b }));
+      }
+
+      function createDividerLines(w, h, vertical = true) {
+        const group = new THREE.Group();
+        const spacing = (vertical ? w : h) / 2;
+        const from = vertical ? new THREE.Vector3(-spacing, -h/2, 42) : new THREE.Vector3(-w/2, -spacing, 42);
+        const to   = vertical ? new THREE.Vector3(-spacing,  h/2, 42) : new THREE.Vector3( w/2, -spacing, 42);
+        const geo = new THREE.BufferGeometry().setFromPoints([from, to]);
+        const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x333333 }));
+        group.add(line);
+        return group;
+      }
+
+      function createCasementWindow(w, h) {
+        const g = new THREE.Group();
+        g.add(createFrame(w, h));
+        g.add(createGlass(w - 120, h - 120));
+        g.add(createDividerLines(w - 120, h - 120, true));
+        return g;
+      }
+
+      function createSashWindow(w, h) {
+        const g = new THREE.Group();
+        g.add(createFrame(w, h));
+        const sashH = (h - 120) / 2;
+        const sashW = w - 120;
+        const top = createGlass(sashW, sashH); top.position.y = sashH / 2;
+        const bot = createGlass(sashW, sashH); bot.position.y = -sashH / 2;
+        g.add(top); g.add(bot);
+        g.add(createDividerLines(sashW, sashH * 2, false));
+        return g;
+      }
+
+      function createTiltTurnWindow(w, h) {
+        const g = new THREE.Group();
+        g.add(createFrame(w, h));
+        g.add(createGlass(w - 120, h - 120));
+        g.add(createDividerLines(w - 120, h - 120, true));
+        const diag = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(-w / 4, h / 4, 45),
+            new THREE.Vector3( w / 4, -h / 4, 45)
+          ]),
+          new THREE.LineBasicMaterial({ color: 0x000000 })
+        );
+        g.add(diag);
+        return g;
+      }
+
+      function updateWindow() {
+        if (windowMesh) scene.remove(windowMesh);
+        const w = parseFloat(document.getElementById('windowWidth').value) || 1000;
+        const h = parseFloat(document.getElementById('windowHeight').value) || 1200;
+        const type = document.getElementById('windowType').value;
+        if (type === 'casement') windowMesh = createCasementWindow(w, h);
+        else if (type === 'sash') windowMesh = createSashWindow(w, h);
+        else windowMesh = createTiltTurnWindow(w, h);
+        scene.add(windowMesh);
+      }
+
+      function init() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color('#eaf4ff');
+
+        camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 10000);
+        camera.position.set(1200, 1000, 1500);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        scene.add(new THREE.AmbientLight(0x888888));
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(1, 1, 1);
+        scene.add(light);
+
+        updateWindow();
+        animate();
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+      }
+
+      document.getElementById('updateButton').addEventListener('click', updateWindow);
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      init();
+    });
+  </script>
+</body>
+</html>
